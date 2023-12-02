@@ -60,7 +60,66 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let result = input
+        .lines()
+        .map(|line| {
+            let (_game, sets) = line.split_once(":").unwrap();
+
+            let sets = sets.split(";");
+            let hands = sets
+                .map(|set| {
+                    let set = set.trim();
+                    let cubes = set.split(",").map(|cube| cube.trim()).collect_vec();
+
+                    cubes
+                })
+                .collect_vec();
+
+            let mut max_reds = 0;
+            let mut max_blues = 0;
+            let mut max_greens = 0;
+
+            let mut i = 0;
+            while i < hands.len() {
+                let hand = &hands[i];
+                let mut j = 0;
+                while j < hand.len() {
+                    let cube = hand[j];
+                    let (number, color) = cube.split_once(" ").unwrap();
+                    let number = number.parse::<u32>().unwrap();
+
+                    match color {
+                        "red" => {
+                            if number > max_reds {
+                                max_reds = number;
+                            }
+                        }
+                        "blue" => {
+                            if number > max_blues {
+                                max_blues = number;
+                            }
+                        }
+                        "green" => {
+                            if number > max_greens {
+                                max_greens = number;
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+
+                    j += 1;
+                }
+
+                i += 1;
+            }
+
+            let power = max_reds * max_blues * max_greens;
+
+            power
+        })
+        .sum();
+
+    Some(result)
 }
 
 #[cfg(test)]
