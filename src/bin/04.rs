@@ -51,8 +51,73 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(result)
 }
 
-pub fn part_two(_input: &str) -> Option<u32> {
-    None
+#[derive(Debug)]
+struct Card {
+    matches: u32,
+    count: u32,
+}
+
+pub fn part_two(input: &str) -> Option<u32> {
+    let lines = input.lines().collect_vec();
+
+    let mut cards: Vec<Card> = Vec::with_capacity(lines.len());
+
+    let mut i = 0;
+    while i < lines.len() {
+        let chars = lines[i].chars();
+
+        let winning_numbers: String = chars
+            .clone()
+            .skip_while(|c| !c.eq(&':'))
+            .skip(1)
+            .take_while(|c| !c.eq(&'|'))
+            .collect();
+        let winning_numbers = winning_numbers.trim();
+        let winning_numbers = winning_numbers
+            .split(" ")
+            .filter(|s| !s.is_empty())
+            .map(|s| s.parse::<u32>().unwrap())
+            .collect_vec();
+
+        let potential_numbers: String = chars.skip_while(|c| !c.eq(&'|')).skip(2).collect();
+        let potential_numbers = potential_numbers.trim();
+        let potential_numbers = potential_numbers
+            .split(" ")
+            .filter(|s| !s.is_empty())
+            .map(|s| s.parse::<u32>().unwrap())
+            .collect_vec();
+
+        let mut matches = 0;
+        for number in winning_numbers {
+            if potential_numbers.contains(&number) {
+                matches += 1;
+            }
+        }
+
+        let card = Card { matches, count: 1 };
+
+        cards.push(card);
+
+        i += 1;
+    }
+
+    let mut i = 0;
+    while i < cards.len() {
+        let card = &cards[i];
+        let matches = card.matches as usize;
+
+        for _ in 0..card.count {
+            for j in (i + 1)..(i + 1 + matches as usize) {
+                cards[j].count += 1;
+            }
+        }
+
+        i += 1;
+    }
+
+    let sum = cards.iter().map(|card| card.count).sum();
+
+    Some(sum)
 }
 
 #[cfg(test)]
