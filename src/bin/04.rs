@@ -61,28 +61,23 @@ pub fn part_two(input: &str) -> Option<u32> {
     let mut cards = input
         .lines()
         .map(|line| {
-            let chars = line.chars();
+            let mut parts = line.split('|');
 
-            let winning_numbers: String = chars
-                .clone()
-                .skip_while(|c| !c.eq(&':'))
-                .skip(1)
-                .take_while(|c| !c.eq(&'|'))
-                .collect();
-            let winning_numbers = winning_numbers.trim();
-            let winning_numbers = winning_numbers
-                .split(" ")
-                .filter(|s| !s.is_empty())
-                .map(|s| s.parse::<u32>().unwrap())
-                .collect_vec();
+            // Extracting the winning numbers
+            let winning_numbers = parts
+                .next()
+                .unwrap_or("")
+                .split_whitespace()
+                .filter_map(|s| s.parse::<u32>().ok())
+                .collect::<Vec<u32>>();
 
-            let potential_numbers: String = chars.skip_while(|c| !c.eq(&'|')).skip(2).collect();
-            let potential_numbers = potential_numbers.trim();
-            let potential_numbers = potential_numbers
-                .split(" ")
-                .filter(|s| !s.is_empty())
-                .map(|s| s.parse::<u32>().unwrap())
-                .collect_vec();
+            // Extracting the potential numbers
+            let potential_numbers = parts
+                .next()
+                .unwrap_or("")
+                .split_whitespace()
+                .filter_map(|s| s.parse::<u32>().ok())
+                .collect::<Vec<u32>>();
 
             let mut matches = 0;
             for number in winning_numbers {
