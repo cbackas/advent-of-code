@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use itertools::Itertools;
+use rayon::prelude::*;
 
 advent_of_code::solution!(5);
 
@@ -97,8 +98,6 @@ pub fn part_two(input: &str) -> Option<u32> {
         .collect();
     seed_ranges.sort_by_key(|r| r.start);
 
-    println!("Merging ranges");
-
     let mut merged_ranges: Vec<SeedRange> = Vec::new();
     for range in seed_ranges {
         if let Some(last) = merged_ranges.last_mut() {
@@ -111,20 +110,16 @@ pub fn part_two(input: &str) -> Option<u32> {
         merged_ranges.push(range);
     }
 
-    println!("Expanding {} seeds", seeds.len());
-
     let mut seeds: Vec<u64> = Vec::new();
     for range in merged_ranges {
         seeds.extend(range.start..range.stop);
     }
 
-    println!("Compiled {} seeds", seeds.len());
-
     while let Some(_) = lines.next() {
         let maps = process_map_block(&mut lines);
 
         let transformed = seeds
-            .iter()
+            .par_iter()
             .map(|seed| {
                 let mut seed = *seed;
                 for map in &maps {
@@ -137,7 +132,7 @@ pub fn part_two(input: &str) -> Option<u32> {
 
                 seed
             })
-            .collect_vec();
+            .collect();
 
         seeds = transformed;
     }
