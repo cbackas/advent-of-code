@@ -2,15 +2,26 @@ use itertools::Itertools;
 
 advent_of_code::solution!(9);
 
-fn extrapolate_next_item(vecs: Vec<&Vec<i32>>) -> i32 {
+#[derive(Clone, Copy)]
+enum Direction {
+    Forward,
+    Backward,
+}
+
+fn extrapolate_next_item(vecs: Vec<&Vec<i32>>, direction: Direction) -> i32 {
     let mut running_number = 0;
 
     let mut i = 0;
     loop {
         if let Some(next_thing) = vecs.get(i + 1) {
-            let next_last_number = next_thing.last().unwrap();
-
-            running_number += next_last_number;
+            match direction {
+                Direction::Forward => {
+                    running_number += next_thing.last().unwrap();
+                }
+                Direction::Backward => {
+                    running_number = next_thing.first().unwrap() - running_number;
+                }
+            };
         } else {
             break;
         }
@@ -48,23 +59,29 @@ fn expand_number_vec(mut vecs: Vec<Vec<i32>>, current_index: usize) -> Vec<Vec<i
     expand_number_vec(vecs, current_index + 1)
 }
 
-pub fn part_one(input: &str) -> Option<i32> {
-    let number_vecs = input
+fn day_9(input: &str, direction: Direction) -> i32 {
+    input
         .lines()
         .map(|line| line.split_whitespace().collect_vec())
         .map(|vec| vec.iter().map(|s| s.parse::<i32>().unwrap()).collect_vec())
         .map(|vec| {
             let expanded_vector = expand_number_vec(vec![vec], 0);
             let expanded_vector = expanded_vector.iter().rev().collect_vec();
-            extrapolate_next_item(expanded_vector)
+            extrapolate_next_item(expanded_vector, direction)
         })
-        .sum();
+        .sum()
+}
+
+pub fn part_one(input: &str) -> Option<i32> {
+    let number_vecs = day_9(input, Direction::Forward);
 
     Some(number_vecs)
 }
 
-pub fn part_two(_input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<i32> {
+    let number_vecs = day_9(input, Direction::Backward);
+
+    Some(number_vecs)
 }
 
 #[cfg(test)]
