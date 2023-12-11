@@ -23,7 +23,13 @@ struct Tile {
     directions: Vec<Direction>,
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
+#[derive(Debug)]
+struct Path {
+    path: Vec<(usize, usize)>,
+    distance: u32,
+}
+
+fn find_path(input: &str) -> Path {
     let rows: Vec<Row> = input
         .par_lines()
         .map(|line| {
@@ -171,6 +177,12 @@ pub fn part_one(input: &str) -> Option<u32> {
         last_direction = Some(next_direction);
     }
 
+    Path { path, distance }
+}
+
+pub fn part_one(input: &str) -> Option<u32> {
+    let path = find_path(input);
+    let distance = path.distance;
     Some(distance / 2)
 }
 
