@@ -3,7 +3,7 @@ use rayon::{prelude::ParallelIterator, str::ParallelString};
 
 advent_of_code::solution!(10);
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum Direction {
     North,
     South,
@@ -24,13 +24,14 @@ struct Tile {
 }
 
 #[derive(Debug)]
-struct Path {
+struct PathRsult {
+    rows: Vec<Row>,
     path: Vec<(usize, usize)>,
     distance: u32,
 }
 
-fn find_path(input: &str) -> Path {
-    let rows: Vec<Row> = input
+fn find_path(input: &str) -> PathRsult {
+    let mut rows: Vec<Row> = input
         .par_lines()
         .map(|line| {
             let mut starting_position: Option<usize> = None;
@@ -94,11 +95,12 @@ fn find_path(input: &str) -> Path {
         .find(|(_, row)| row.start_index.is_some())
         .unwrap();
     let starting_position = (starting_row.0, starting_row.1.start_index.unwrap());
+    let mut starting_directions: Vec<Direction> = Vec::new();
 
     let mut path: Vec<(usize, usize)> = Vec::new();
     let mut current_position = starting_position;
     let mut distance = 0;
-    let mut last_direction: Option<&Direction> = None;
+    let mut last_direction: Option<Direction> = None;
     loop {
         let current_tile = &rows[current_position.0].tiles[current_position.1];
 
@@ -152,6 +154,7 @@ fn find_path(input: &str) -> Path {
                 },
                 None => true,
             })
+            .map(|direction| *direction)
             .collect_vec();
 
         let dir_len = viable_directions.len();
@@ -159,8 +162,12 @@ fn find_path(input: &str) -> Path {
             panic!("no viable directions");
         }
 
-        if viable_directions.len() > 2 {
+        if dir_len > 2 {
             panic!("more than two viable direction: {:?}", viable_directions);
+        }
+
+        if dir_len == 2 {
+            starting_directions = viable_directions.clone();
         }
 
         let next_direction = viable_directions[0];
@@ -177,7 +184,14 @@ fn find_path(input: &str) -> Path {
         last_direction = Some(next_direction);
     }
 
-    Path { path, distance }
+    // convert the starting tile to only have the two viable directions for part 2
+    rows[starting_position.0].tiles[starting_position.1].directions = starting_directions;
+
+    PathRsult {
+        rows,
+        path,
+        distance,
+    }
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -186,8 +200,37 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(distance / 2)
 }
 
-pub fn part_two(_input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<usize> {
+    let path = find_path(input);
+
+    let rows = path.rows;
+    let path = path.path;
+
+    let mut is_inside = false;
+    let inside_count: usize = rows
+        .iter()
+        .enumerate()
+        .map(|(row_index, row)| {
+            row.tiles
+                .iter()
+                .enumerate()
+                .filter(|(tile_index, tile)| {
+                    let is_pipe = tile.directions.contains(&Direction::North);
+                    let is_path = path.contains(&(row_index, *tile_index));
+                    if is_pipe && is_path {
+                        is_inside = !is_inside;
+                        return false;
+                    } else if is_path {
+                        return false;
+                    } else {
+                        return is_inside;
+                    }
+                })
+                .count()
+        })
+        .sum();
+
+    Some(inside_count)
 }
 
 #[cfg(test)]
@@ -203,6 +246,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(8));
     }
 }
