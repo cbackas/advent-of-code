@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use rayon::{
     prelude::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator},
     str::ParallelString,
@@ -102,14 +103,7 @@ fn find_galaxies(rows: &Vec<Vec<bool>>, expansion: usize) -> Vec<Galaxy> {
 }
 
 fn pair_galaxies(galaxies: &Vec<Galaxy>) -> Vec<(&Galaxy, &Galaxy)> {
-    let mut galaxy_pairs = Vec::new();
-    for (i, first_galaxy) in galaxies.iter().enumerate() {
-        for second_galaxy in galaxies.iter().skip(i + 1) {
-            galaxy_pairs.push((first_galaxy, second_galaxy));
-        }
-    }
-
-    galaxy_pairs
+    galaxies.iter().tuple_combinations().collect_vec()
 }
 
 fn calculate_distance(galaxy_one: &Galaxy, galaxy_two: &Galaxy) -> u64 {
