@@ -56,67 +56,52 @@ fn find_empty_rows_and_cols(rows: &Vec<Vec<bool>>) -> (Vec<usize>, Vec<usize>) {
     (empty_rows, empty_cols)
 }
 
-fn expand_empty_space(
-    rows: Vec<Vec<bool>>,
-    empty_rows: Vec<usize>,
-    empty_cols: Vec<usize>,
-) -> Vec<Vec<bool>> {
-    let mut rows = rows;
-
-    let mut empty_cols = empty_cols;
-    empty_cols.reverse();
-    for empty_col in empty_cols {
-        for row_index in 0..rows.len() {
-            rows[row_index].insert(empty_col, false);
-        }
-    }
-
-    let mut empty_rows = empty_rows;
-    empty_rows.reverse();
-    for empty_row in &empty_rows {
-        rows.insert(*empty_row, vec![false; rows[0].len()]);
-    }
-
-    rows.to_vec()
-}
-
 #[derive(Debug)]
 struct Galaxy {
     position: (usize, usize),
 }
 
-fn calculate_distance(galaxy_one: &Galaxy, galaxy_two: &Galaxy) -> u32 {
-    let x_distance = (galaxy_two.position.0 as i32 - galaxy_one.position.0 as i32).abs();
-    let y_distance = (galaxy_two.position.1 as i32 - galaxy_one.position.1 as i32).abs();
-
-    let distance = x_distance + y_distance;
-
-    distance as u32
-}
-
-pub fn part_one(input: &str) -> Option<u32> {
-    let rows = convert_to_bool_vec(input);
+fn find_galaxies(rows: &Vec<Vec<bool>>, expansion: usize) -> Vec<Galaxy> {
     let (empty_rows, empty_cols) = find_empty_rows_and_cols(&rows);
-    let rows = expand_empty_space(rows, empty_rows, empty_cols);
 
     let galaxies: Vec<Galaxy> = rows
         .par_iter()
         .enumerate()
         .flat_map(|(row_index, row)| {
+            let empty_rows = empty_rows.clone();
+            let empty_cols = empty_cols.clone();
+
             row.par_iter()
                 .enumerate()
                 .filter_map(move |(col_index, &is_galaxy)| {
-                    if is_galaxy {
-                        Some(Galaxy {
-                            position: (row_index, col_index),
-                        })
-                    } else {
-                        None
+                    if !is_galaxy {
+                        return None;
                     }
+
+                    let applicable_empty_rows = empty_rows
+                        .iter()
+                        .filter(|&&empty_row| empty_row < row_index)
+                        .count();
+                    let applicable_empty_cols = empty_cols
+                        .iter()
+                        .filter(|&&empty_col| empty_col < col_index)
+                        .count();
+
+                    let expansion = expansion as usize - 1;
+                    let row_index = row_index + applicable_empty_rows * expansion;
+                    let col_index = col_index + applicable_empty_cols * expansion;
+
+                    Some(Galaxy {
+                        position: (row_index, col_index),
+                    })
                 })
         })
         .collect();
 
+    galaxies
+}
+
+fn pair_galaxies(galaxies: &Vec<Galaxy>) -> Vec<(&Galaxy, &Galaxy)> {
     let mut galaxy_pairs = Vec::new();
     for (i, first_galaxy) in galaxies.iter().enumerate() {
         for second_galaxy in galaxies.iter().skip(i + 1) {
@@ -124,7 +109,23 @@ pub fn part_one(input: &str) -> Option<u32> {
         }
     }
 
-    let result: u32 = galaxy_pairs
+    galaxy_pairs
+}
+
+fn calculate_distance(galaxy_one: &Galaxy, galaxy_two: &Galaxy) -> u64 {
+    let x_distance = (galaxy_two.position.0 as i32 - galaxy_one.position.0 as i32).abs();
+    let y_distance = (galaxy_two.position.1 as i32 - galaxy_one.position.1 as i32).abs();
+
+    let distance = x_distance + y_distance;
+
+    distance as u64
+}
+
+fn calc_result(input: &str, expansion: usize) -> Option<u64> {
+    let rows = convert_to_bool_vec(input);
+    let galaxies = find_galaxies(&rows, expansion);
+    let galaxies = pair_galaxies(&galaxies);
+    let result: u64 = galaxies
         .par_iter()
         .map(|galaxy| {
             let distance = calculate_distance(galaxy.0, galaxy.1);
@@ -135,8 +136,12 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(result)
 }
 
-pub fn part_two(_input: &str) -> Option<u32> {
-    None
+pub fn part_one(input: &str) -> Option<u64> {
+    calc_result(input, 2)
+}
+
+pub fn part_two(input: &str) -> Option<u64> {
+    calc_result(input, 1000000)
 }
 
 #[cfg(test)]
@@ -149,9 +154,9 @@ mod tests {
         assert_eq!(result, Some(374));
     }
 
-    // #[test]
-    // fn test_part_two() {
-    //     let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-    //     assert_eq!(result, None);
-    // }
+    #[test]
+    fn test_part_two() {
+        let result = part_two(&advent_of_code::template::read_file("examples", DAY));
+        assert_eq!(result, Some(1030));
+    }
 }
