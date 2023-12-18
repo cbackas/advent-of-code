@@ -37,9 +37,7 @@ fn dijkstra_wrapper_wrapper(input: &str, min_moves: u32, max_moves: u32) -> u32 
 
             successors
         },
-        |&(pos, _, moves)| {
-            pos == (lava_matrix.rows - 1, lava_matrix.columns - 1) && moves >= min_moves
-        },
+        |&(pos, _, _)| pos == (lava_matrix.rows - 1, lava_matrix.columns - 1),
     )
     .unwrap();
 
