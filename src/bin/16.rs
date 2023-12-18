@@ -1,11 +1,16 @@
-use std::collections::HashSet;
+use std::{
+    collections::{HashMap, HashSet},
+    hash::{Hash, Hasher},
+    sync::RwLock,
+};
 
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 advent_of_code::solution!(16);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Direction {
     Up,
     Down,
@@ -13,19 +18,19 @@ enum Direction {
     Right,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum MirrorType {
     Forward,
     Backward,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum SplitterDirection {
     Vertical,
     Horizontal,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum TileType {
     Empty,
     Mirror(MirrorType),
@@ -51,6 +56,7 @@ impl Tile {
 struct PathTile {
     tile: Tile,
     direction: Direction,
+    is_edge: bool,
 }
 
 // fn print_grid(coords: Vec<(usize, usize)>) {
@@ -73,11 +79,64 @@ struct PathTile {
 // }
 //
 // Custom key for memoization
-#[derive(Eq, Clone, Debug, Hash, PartialEq)]
-struct MemoKey {
+// #[derive(Eq, Clone, Debug, Hash, PartialEq)]
+// struct MemoKey {
+//     start: (usize, usize),
+//     current_direction: Direction,
+// }
+
+static MEMO: Lazy<RwLock<HashMap<Edge, u32>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
+fn memoized_light_path_find(
     rows: Vec<String>,
     start: (usize, usize),
     current_direction: Direction,
+) -> u32 {
+    {
+        let key = Edge::new(start.0, start.1, current_direction);
+        let memo_read = MEMO.read().unwrap();
+        if let Some(result) = memo_read.get(&key) {
+            // println!("cache hit");
+            return *result;
+        }
+    }
+
+    let path = light_path_find(rows, start, current_direction, HashSet::new());
+
+    let edges: HashSet<Edge> = path
+        .par_iter()
+        .filter_map(|path_tile| {
+            if !path_tile.is_edge {
+                return None;
+            }
+            let position = path_tile.tile.position;
+            let direction = match path_tile.direction {
+                Direction::Up => Direction::Down,
+                Direction::Down => Direction::Up,
+                Direction::Left => Direction::Right,
+                Direction::Right => Direction::Left,
+            };
+            Some(Edge::new(position.0, position.1, direction))
+        })
+        .collect();
+
+    let unique_positions: HashSet<(usize, usize)> = path
+        .iter()
+        .map(|path_tile| path_tile.tile.position)
+        .collect();
+    let charged = unique_positions.len() as u32;
+
+    {
+        let mut memo_write = MEMO.write().unwrap();
+        for edge in edges {
+            let _result = memo_write.insert(edge, charged);
+            // if result.is_some() {
+            //     println!("cache collision");
+            // }
+        }
+    }
+
+    charged
 }
 
 fn light_path_find(
@@ -109,11 +168,54 @@ fn light_path_find(
             None => panic!("Character not found"),
         };
 
-        let inserted = path.insert(PathTile {
-            tile: Tile::new((row, col), current_type.clone()),
-            direction: current_direction.clone(),
-        });
-        if !inserted {
+        let new_directions: Vec<Direction> = match current_type {
+            TileType::Empty => vec![current_direction],
+            TileType::Mirror(MirrorType::Forward) => match current_direction {
+                Direction::Up => vec![Direction::Right],
+                Direction::Down => vec![Direction::Left],
+                Direction::Left => vec![Direction::Down],
+                Direction::Right => vec![Direction::Up],
+            },
+            TileType::Mirror(MirrorType::Backward) => match current_direction {
+                Direction::Up => vec![Direction::Left],
+                Direction::Down => vec![Direction::Right],
+                Direction::Left => vec![Direction::Up],
+                Direction::Right => vec![Direction::Down],
+            },
+            TileType::Splitter(SplitterDirection::Horizontal) => match current_direction {
+                Direction::Left => vec![Direction::Left],
+                Direction::Right => vec![Direction::Right],
+                Direction::Up | Direction::Down => vec![Direction::Left, Direction::Right],
+            },
+            TileType::Splitter(SplitterDirection::Vertical) => match current_direction {
+                Direction::Up => vec![Direction::Up],
+                Direction::Down => vec![Direction::Down],
+                Direction::Left | Direction::Right => vec![Direction::Up, Direction::Down],
+            },
+        };
+
+        let mut done = false;
+        for new_direction in &new_directions {
+            // check if moving in the new direction would be out of bounds
+            let moves_out_of_bounds = match new_direction {
+                Direction::Up => row == 0,
+                Direction::Down => row == rows.len() - 1,
+                Direction::Left => col == 0,
+                Direction::Right => col == rows[row].len() - 1,
+            };
+
+            let path_tile = PathTile {
+                tile: Tile::new((row, col), current_type),
+                direction: *new_direction,
+                is_edge: moves_out_of_bounds,
+            };
+            let inserted = path.insert(path_tile);
+            if !inserted {
+                done = true;
+                break;
+            }
+        }
+        if done {
             break;
         }
 
@@ -229,12 +331,8 @@ fn light_path_find(
                     }
 
                     if col != rows[row].len() - 1 {
-                        let right_path = light_path_find(
-                            rows.clone(),
-                            (row, col + 1),
-                            Direction::Right,
-                            path.clone(),
-                        );
+                        let right_path =
+                            light_path_find(rows, (row, col + 1), Direction::Right, path.clone());
                         path.extend(right_path);
                     }
 
@@ -243,18 +341,8 @@ fn light_path_find(
             }
         } else if current_type == TileType::Splitter(SplitterDirection::Vertical) {
             match current_direction {
-                Direction::Up => {
-                    if row == 0 {
-                        break;
-                    }
-                    row -= 1
-                }
-                Direction::Down => {
-                    if row == rows.len() - 1 {
-                        break;
-                    }
-                    row += 1;
-                }
+                Direction::Up => row -= 1,
+                Direction::Down => row += 1,
                 Direction::Left | Direction::Right => {
                     if row != 0 {
                         let up_path = light_path_find(
@@ -299,6 +387,19 @@ impl Edge {
             col,
             direction,
         }
+    }
+}
+
+impl Hash for Edge {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.row.hash(state);
+        self.col.hash(state);
+        // Map opposite directions to the same value for hashing
+        let direction_value = match self.direction {
+            Direction::Up | Direction::Down => 0,
+            Direction::Left | Direction::Right => 1,
+        };
+        direction_value.hash(state);
     }
 }
 
@@ -350,22 +451,16 @@ pub fn part_one(input: &str) -> Option<u32> {
 pub fn part_two(input: &str) -> Option<u32> {
     let rows = input.lines().map(|r| r.to_string()).collect_vec();
 
-    let mut edges = edge_indexes(&rows.iter().map(|r| r.chars().collect_vec()).collect_vec());
+    let edges = edge_indexes(&rows.iter().map(|r| r.chars().collect_vec()).collect_vec());
     let result = edges
         .par_iter()
         .map(|edge| {
-            let light_path = light_path_find(
+            let light_path = memoized_light_path_find(
                 rows.clone(),
                 (edge.row, edge.col),
                 edge.direction.clone(),
-                HashSet::new(),
             );
-            let unique_positions: HashSet<(usize, usize)> = light_path
-                .par_iter()
-                .map(|path_tile| path_tile.tile.position)
-                .collect();
-
-            unique_positions.len() as u32
+            light_path
         })
         .max();
 
